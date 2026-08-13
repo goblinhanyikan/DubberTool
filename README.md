@@ -2,6 +2,7 @@
 
 A local-first, browser-based voiceover and dubbing bench. Drop in a video, record new dialogue over any part of it, and export a dubbed version — all inside a single HTML file, nothing installed, nothing uploaded to a server.
 DISCLAIMER: This is a Vibe-Coded Application. If you are avoiding AI generated softwares for any reason, you deserve to know.
+To access the app online, you can visit https://goblinhanyikan.github.io/DubberTool/
 
 ---
 
