@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DUB.TOOL — voiceover bench</title>
+<style>
+  :root{
+    --bg:#0a0a0a;
+    --fg:#f2f0e8;
+    --line:#f2f0e8;
+    --accent:#ff3b00;   /* record red */
+    --accent2:#4dff8f;  /* scope green */
+    --panel:#141414;
+    --dim:#777;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+    font-family:'JetBrains Mono','IBM Plex Mono',ui-monospace,Consolas,monospace;
+    font-size:13px;letter-spacing:.02em;}
+  .wrap{max-width:1040px;margin:0 auto;padding:24px 20px 80px;}
+
+  header{display:flex;justify-content:space-between;align-items:baseline;
+    border-bottom:3px solid var(--line);padding-bottom:14px;margin-bottom:18px;}
+  header h1{font-size:20px;margin:0;font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
+  header h1 span{color:var(--accent);}
+  header .tag{color:var(--dim);font-size:11px;text-transform:uppercase;}
+
+  .drop{border:3px dashed var(--line);padding:34px 20px;text-align:center;
+    cursor:pointer;margin-bottom:18px;transition:background .1s;}
+  .drop:hover,.drop.drag{background:var(--panel);}
+  .drop b{text-transform:uppercase;letter-spacing:.08em;}
+  .drop small{display:block;margin-top:6px;color:var(--dim);}
+  input[type=file]{display:none;}
+
+  section.panel{border:2px solid var(--line);margin-bottom:18px;}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;
+    padding:8px 12px;border-bottom:2px solid var(--line);text-transform:uppercase;
+    font-size:11px;letter-spacing:.08em;color:var(--dim);}
+  .panel-head b{color:var(--fg);}
+  .panel-body{padding:12px;}
+  .wave-head-right{display:flex;align-items:center;gap:14px;}
+  .zoom-controls{display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0;}
+  .zoom-btn{padding:3px 9px;font-size:12px;line-height:1;min-width:26px;}
+  .zoom-pct{color:var(--fg);font-size:10px;min-width:38px;text-align:center;}
+  .wave-scroll{overflow-x:auto;overflow-y:hidden;}
+  .wave-scroll::-webkit-scrollbar{height:10px;}
+  .wave-scroll::-webkit-scrollbar-track{background:var(--bg);}
+  .wave-scroll::-webkit-scrollbar-thumb{background:#444;border:1px solid var(--bg);}
+  .wave-scroll::-webkit-scrollbar-thumb:hover{background:#666;}
+
+  video{width:100%;display:block;background:#000;border-bottom:2px solid var(--line);}
+
+  canvas{display:block;width:100%;image-rendering:pixelated;}
+  .wave-wrap{position:relative;cursor:crosshair;}
+  .wave-wrap .region{position:absolute;top:0;bottom:0;background:rgba(255,59,0,.22);
+    border-left:2px solid var(--accent);border-right:2px solid var(--accent);pointer-events:none;}
+  .wave-wrap .take-mark{position:absolute;top:0;bottom:0;background:rgba(255,214,0,.28);
+    border-left:2px solid #ffd600;border-right:2px solid #ffd600;cursor:grab;}
+  .wave-wrap .take-mark:hover{background:rgba(255,214,0,.42);}
+  .wave-wrap .take-mark.dragging{cursor:grabbing;background:rgba(255,214,0,.5);}
+  .wave-wrap .crop-handle{position:absolute;top:0;bottom:0;width:8px;cursor:ew-resize;
+    background:rgba(10,10,10,.35);}
+  .wave-wrap .crop-handle:hover,.wave-wrap .crop-handle.cropping{background:#ffd600;}
+  .wave-wrap .crop-handle.left{left:-4px;}
+  .wave-wrap .crop-handle.right{right:-4px;}
+  .wave-wrap .cursor{position:absolute;top:0;bottom:0;width:1px;background:var(--fg);pointer-events:none;}
+
+  .transport{display:flex;gap:8px;align-items:center;padding:10px 12px;
+    border-top:2px solid var(--line);flex-wrap:wrap;}
+  .transport .time{color:var(--dim);font-size:11px;margin-right:auto;}
+
+  button.btn{background:transparent;color:var(--fg);border:2px solid var(--line);
+    padding:8px 14px;font-family:inherit;font-size:11px;text-transform:uppercase;
+    letter-spacing:.06em;cursor:pointer;}
+  button.btn:hover{background:var(--fg);color:var(--bg);}
+  button.btn:disabled{opacity:.3;cursor:not-allowed;}
+  button.btn:disabled:hover{background:transparent;color:var(--fg);}
+  button.rec{border-color:var(--accent);color:var(--accent);}
+  button.rec:hover{background:var(--accent);color:var(--bg);}
+  button.rec.active{background:var(--accent);color:var(--bg);animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.55;}}
+
+  .mic-wrap{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:2px solid var(--line);}
+  .mic-wrap>div{border-right:2px solid var(--line);}
+  .mic-wrap>div:last-child{border-right:none;}
+  .mic-label{font-size:10px;text-transform:uppercase;color:var(--dim);padding:6px 10px;
+    border-bottom:1px solid #333;}
+  .mic-select-row{display:flex;gap:0;border-bottom:1px solid #333;}
+  .mic-select-row select{flex:1;background:var(--bg);color:var(--fg);border:none;
+    border-right:1px solid #333;font-family:inherit;font-size:11px;padding:6px 8px;outline:none;}
+  .mic-select-row button{border:none;border-radius:0;padding:6px 10px;font-size:11px;}
+
+  .takes{padding:0;}
+  .take-row{display:flex;align-items:center;gap:10px;padding:8px 12px;
+    border-top:1px solid #2a2a2a;font-size:11px;}
+  .take-row:first-child{border-top:none;}
+  .take-row .rng{color:var(--accent2);min-width:110px;}
+  .take-row .fill{flex:1;color:var(--dim);}
+  .take-row button{padding:4px 8px;font-size:10px;}
+  .take-name{background:var(--bg);color:var(--fg);border:1px solid #444;
+    font-family:inherit;font-size:11px;padding:5px 8px;min-width:120px;max-width:180px;
+    outline:none;}
+  .take-name:focus{border-color:var(--accent2);}
+  .empty{color:var(--dim);padding:14px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;}
+
+  .hint{color:var(--dim);font-size:11px;line-height:1.6;padding:10px 12px;border-top:2px solid var(--line);}
+  .hint b{color:var(--fg);}
+
+  .export-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .export-row .status{color:var(--accent2);font-size:11px;margin-left:auto;}
+  a.dl{color:var(--accent2);text-decoration:none;border-bottom:1px solid var(--accent2);}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>DUB<span>.</span>TOOL</h1>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div class="tag" data-i18n="tagline">local voiceover bench // v0.1</div>
+      <button class="btn" id="langBtn">TÜRKÇE</button>
+      <button class="btn" id="saveProjBtn" disabled data-i18n="saveProject">save project</button>
+      <button class="btn" id="loadProjBtn" data-i18n="loadProject">load project</button>
+      <input type="file" id="loadProjInput" accept=".dubproj,.zip" style="display:none;">
+    </div>
+  </header>
+
+  <div class="drop" id="drop">
+    <b data-i18n="dropTitle">drop a video file here, or click to browse</b>
+    <small data-i18n="dropSub">mp4 / webm / mov — processed entirely on this device, nothing uploaded</small>
+    <input type="file" id="fileInput" accept="video/*">
+  </div>
+
+  <section class="panel" id="relinkPanel" style="display:none;">
+    <div class="panel-head"><b data-i18n="relinkTitle">relink source video</b><span id="relinkExpect"></span></div>
+    <div class="panel-body">
+      <p style="margin:0 0 10px;color:var(--dim);" data-i18n="relinkBody">
+        this project's takes and timings are loaded, but the original video file isn't stored in the project
+        (that would make it huge). select the same source file again to reconnect it.
+      </p>
+      <button class="btn" id="relinkBtn" data-i18n="relinkBtn">choose video file</button>
+      <input type="file" id="relinkInput" accept="video/*" style="display:none;">
+      <span class="status" id="relinkStatus" style="margin-left:10px;"></span>
+    </div>
+  </section>
+
+  <section class="panel" id="mainPanel" style="display:none;">
+    <div class="panel-head"><b data-i18n="source">source</b><span id="fname">—</span></div>
+    <video id="vid" controls muted></video>
+
+    <div class="panel-head">
+      <b data-i18n="waveform">waveform</b>
+      <span class="wave-head-right">
+        <span data-i18n="waveformSub">drag to select a region to dub · yellow = already dubbed</span>
+        <span class="zoom-controls">
+          <button class="btn zoom-btn" id="zoomOutBtn" title="zoom out" data-i18n-title="zoomOut">−</button>
+          <span class="zoom-pct" id="zoomPct">100%</span>
+          <button class="btn zoom-btn" id="zoomInBtn" title="zoom in" data-i18n-title="zoomIn">+</button>
+          <button class="btn zoom-btn" id="zoomFitBtn" title="fit to window" data-i18n="zoomFit">fit</button>
+        </span>
+      </span>
+    </div>
+    <div class="panel-body" style="padding:0;">
+      <div class="wave-scroll" id="waveScroll">
+        <div class="wave-wrap" id="waveWrap">
+          <canvas id="waveCanvas" height="90"></canvas>
+          <div id="takeMarks"></div>
+          <div class="region" id="regionBox" style="display:none;"></div>
+          <div class="cursor" id="playCursor" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="transport">
+      <button class="btn" id="playSel" data-i18n="playSelection">▶ play selection</button>
+      <button class="btn" id="clearSel" data-i18n="clearSelection">clear selection</button>
+      <button class="btn rec" id="recBtn" disabled data-i18n="recordVoiceover">● record voiceover</button>
+      <span class="time" id="selTime" data-i18n="noSelection">no selection</span>
+    </div>
+
+    <div class="mic-wrap">
+      <div>
+        <div class="mic-label" data-i18n="micLive">mic input — live</div>
+        <div class="mic-select-row">
+          <select id="micSelect"><option value="" data-i18n="defaultDevice">default device</option></select>
+          <button class="btn" id="micRefresh" title="rescan devices" data-i18n-title="rescanDevices">↻</button>
+        </div>
+        <canvas id="micCanvas" height="70"></canvas>
+      </div>
+      <div>
+        <div class="mic-label" data-i18n="lastTake">last take — recorded</div>
+        <canvas id="takeCanvas" height="70"></canvas>
+      </div>
+    </div>
+
+    <div class="panel-head"><b data-i18n="dubbedSegments">dubbed segments</b><span id="takeCount">0</span></div>
+    <div class="takes" id="takesList">
+      <div class="empty" data-i18n="noTakesYet">no takes yet — select a region above and hit record</div>
+    </div>
+
+    <div class="panel-head"><b data-i18n="preview">preview</b><span data-i18n="previewSub">watch the whole clip with your takes swapped in</span></div>
+    <div class="panel-body export-row">
+      <button class="btn" id="previewFullBtn" disabled data-i18n="previewFullDub">▶ preview full dub</button>
+      <button class="btn" id="stopPreviewBtn" style="display:none;" data-i18n="stopPreview">■ stop preview</button>
+      <span class="status" id="previewStatus"></span>
+    </div>
+
+    <div class="hint" data-i18n="hintText">
+      workflow: <b>1.</b> drag on the waveform to mark the part you want to redo &nbsp;
+      <b>2.</b> hit record and perform over the muted original &nbsp;
+      <b>3.</b> repeat for as many parts as you want &nbsp;
+      <b>4.</b> hit export to render a new file with your takes mixed in over the untouched audio.
+    </div>
+
+    <div class="panel-head"><b data-i18n="export">export</b></div>
+    <div class="panel-body export-row">
+      <button class="btn" id="exportBtn" disabled data-i18n="exportBtn">render dubbed clip (.webm)</button>
+      <span class="status" id="exportStatus"></span>
+    </div>
+
+    <div class="panel-head"><b data-i18n="exportAudio">export audio only</b><span data-i18n="exportAudioSub">for editing in another app</span></div>
+    <div class="panel-body export-row">
+      <button class="btn" id="exportWavBtn" disabled data-i18n="exportWav">download .wav</button>
+      <button class="btn" id="exportMp3Btn" disabled data-i18n="exportMp3">download .mp3</button>
+      <span class="status" id="exportAudioStatus"></span>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  // ---------- i18n ----------
+  const STRINGS = {
+    en: {
+      tagline: 'local voiceover bench // v0.1',
+      saveProject: 'save project', loadProject: 'load project',
+      dropTitle: 'drop a video file here, or click to browse',
+      dropSub: 'mp4 / webm / mov — processed entirely on this device, nothing uploaded',
+      relinkTitle: 'relink source video',
+      relinkBody: "this project's takes and timings are loaded, but the original video file isn't stored in the project (that would make it huge). select the same source file again to reconnect it.",
+      relinkBtn: 'choose video file',
+      source: 'source', waveform: 'waveform',
+      waveformSub: 'drag to select a region to dub · yellow = already dubbed',
+      zoomOut: 'zoom out', zoomIn: 'zoom in', zoomFit: 'fit',
+      playSelection: '▶ play selection', clearSelection: 'clear selection',
+      recordVoiceover: '● record voiceover', noSelection: 'no selection',
+      micLive: 'mic input — live', defaultDevice: 'default device', rescanDevices: 'rescan devices',
+      lastTake: 'last take — recorded',
+      dubbedSegments: 'dubbed segments', noTakesYet: 'no takes yet — select a region above and hit record',
+      preview: 'preview', previewSub: "watch the whole clip with your takes swapped in",
+      previewFullDub: '▶ preview full dub', stopPreview: '■ stop preview',
+      hintText: 'workflow: <b>1.</b> drag on the waveform to mark the part you want to redo &nbsp; '+
+        '<b>2.</b> hit record and perform over the muted original &nbsp; '+
+        '<b>3.</b> repeat for as many parts as you want &nbsp; '+
+        '<b>4.</b> hit export to render a new file with your takes mixed in over the untouched audio.',
+      export: 'export', exportBtn: 'render dubbed clip (.webm)',
+      exportAudio: 'export audio only', exportAudioSub: 'for editing in another app',
+      exportWav: 'download .wav', exportMp3: 'download .mp3',
+      renderingAudio: 'rendering mixed audio…', encodingMp3: 'encoding mp3…',
+
+      decodingAudio: 'decoding audio…',
+      couldNotDecodeAudio: 'could not decode audio track from this file',
+      micName: n => 'microphone '+n,
+      micOpenError: msg => 'could not open that microphone: '+msg,
+      micDenied: 'microphone access denied/unavailable',
+      couldNotDecodeRecording: 'could not decode recording',
+      recStopLabel: '■ stop (auto-stops at region end)',
+      selRange: (s,e,d) => s+' → '+e+'  ('+d+')',
+      playTake: '▶ play take', deleteTake: 'delete', renameTake: 'rename this take',
+      cropLeftTitle: 'trim start (cut silence at the beginning)',
+      cropRightTitle: 'trim end (cut silence at the end)',
+      markTooltip: (name,s,e) => name+' — '+s+' → '+e+' (drag to shift · drag edges to crop)',
+      usedLabel: d => d+'s used', croppedSuffix: full => ' (cropped from '+full+'s)',
+      playingFullDub: 'playing full dub…',
+      zipLoadFail: 'project zip library failed to load — check your connection and reload the page.',
+      lameLoadFail: 'mp3 encoder failed to load — check your connection and reload the page, or try .wav instead.',
+      saving: 'saving…',
+      invalidDubproj: 'this does not look like a valid .dubproj file',
+      missingManifest: 'missing manifest.json — not a valid project file',
+      relinkExpects: (name,size,dur) => 'expects: '+name+'  ·  '+size+'  ·  '+dur,
+      checking: 'checking…',
+      relinkMismatch: "⚠ this doesn't look like the same file (name and size both differ) — loaded anyway, but check your timings.",
+      relinkSizeDiff: '⚠ file size differs from the original — timings may drift.',
+      relinkMatch: 'match found, loading…',
+      projectLoaded: n => 'project loaded — '+n+' take(s) restored',
+      rendering: 'rendering… do not close this tab',
+      downloadLink: 'download dubbed_clip.webm',
+      takeName: n => 'take '+n,
+    },
+    tr: {
+      tagline: 'yerel dublaj tezgahı // v0.1',
+      saveProject: 'projeyi kaydet', loadProject: 'proje yükle',
+      dropTitle: 'bir video dosyasını buraya sürükleyin veya seçmek için tıklayın',
+      dropSub: 'mp4 / webm / mov — tamamen bu cihazda işlenir, hiçbir şey yüklenmez',
+      relinkTitle: 'kaynak videoyu yeniden bağla',
+      relinkBody: 'bu projenin kayıtları ve zamanlamaları yüklendi, ancak orijinal video dosyası projenin içinde saklanmaz (bu, dosyayı çok büyütürdü). yeniden bağlamak için aynı kaynak dosyayı tekrar seçin.',
+      relinkBtn: 'video dosyası seç',
+      source: 'kaynak', waveform: 'ses dalgası',
+      waveformSub: 'dublaj yapılacak bölgeyi seçmek için sürükleyin · sarı = zaten dublajlandı',
+      zoomOut: 'uzaklaştır', zoomIn: 'yakınlaştır', zoomFit: 'sığdır',
+      playSelection: '▶ seçimi oynat', clearSelection: 'seçimi temizle',
+      recordVoiceover: '● seslendirme kaydet', noSelection: 'seçim yok',
+      micLive: 'mikrofon girişi — canlı', defaultDevice: 'varsayılan cihaz', rescanDevices: 'cihazları yenile',
+      lastTake: 'son kayıt — kaydedildi',
+      dubbedSegments: 'dublajlanan bölümler', noTakesYet: 'henüz kayıt yok — yukarıdan bir bölge seçip kaydedin',
+      preview: 'önizleme', previewSub: 'kayıtlarınız yerleştirilmiş haliyle tüm klibi izleyin',
+      previewFullDub: '▶ tam dublajı önizle', stopPreview: '■ önizlemeyi durdur',
+      hintText: 'iş akışı: <b>1.</b> yeniden yapmak istediğiniz kısmı işaretlemek için ses dalgasını sürükleyin &nbsp; '+
+        '<b>2.</b> kayda basın ve sessize alınmış orijinalin üzerine seslendirin &nbsp; '+
+        '<b>3.</b> istediğiniz kadar bölüm için tekrarlayın &nbsp; '+
+        '<b>4.</b> kayıtlarınızın dokunulmamış sesle birleştirildiği yeni bir dosya oluşturmak için dışa aktarın.',
+      export: 'dışa aktar', exportBtn: 'dublajlı klibi oluştur (.webm)',
+      exportAudio: 'sadece sesi dışa aktar', exportAudioSub: 'başka bir uygulamada düzenlemek için',
+      exportWav: '.wav olarak indir', exportMp3: '.mp3 olarak indir',
+      renderingAudio: 'karışık ses işleniyor…', encodingMp3: 'mp3 kodlanıyor…',
+
+      decodingAudio: 'ses çözümleniyor…',
+      couldNotDecodeAudio: 'bu dosyadaki ses parçası çözümlenemedi',
+      micName: n => 'mikrofon '+n,
+      micOpenError: msg => 'bu mikrofon açılamadı: '+msg,
+      micDenied: 'mikrofon erişimi reddedildi/kullanılamıyor',
+      couldNotDecodeRecording: 'kayıt çözümlenemedi',
+      recStopLabel: '■ durdur (bölge sonunda otomatik durur)',
+      selRange: (s,e,d) => s+' → '+e+'  ('+d+')',
+      playTake: '▶ kaydı çal', deleteTake: 'sil', renameTake: 'bu kaydı yeniden adlandır',
+      cropLeftTitle: 'başlangıcı kırp (baştaki sessizliği kes)',
+      cropRightTitle: 'bitişi kırp (sondaki sessizliği kes)',
+      markTooltip: (name,s,e) => name+' — '+s+' → '+e+' (kaydırmak için sürükle · kırpmak için kenarları sürükle)',
+      usedLabel: d => d+' sn kullanıldı', croppedSuffix: full => ' ('+full+' sn kayıttan kırpıldı)',
+      playingFullDub: 'tam dublaj oynatılıyor…',
+      zipLoadFail: 'proje zip kütüphanesi yüklenemedi — bağlantınızı kontrol edip sayfayı yenileyin.',
+      lameLoadFail: 'mp3 kodlayıcı yüklenemedi — bağlantınızı kontrol edip sayfayı yenileyin, ya da .wav deneyin.',
+      saving: 'kaydediliyor…',
+      invalidDubproj: 'bu geçerli bir .dubproj dosyası gibi görünmüyor',
+      missingManifest: 'manifest.json eksik — geçerli bir proje dosyası değil',
+      relinkExpects: (name,size,dur) => 'beklenen: '+name+'  ·  '+size+'  ·  '+dur,
+      checking: 'kontrol ediliyor…',
+      relinkMismatch: '⚠ bu aynı dosya gibi görünmüyor (isim ve boyut farklı) — yine de yüklendi, zamanlamaları kontrol edin.',
+      relinkSizeDiff: '⚠ dosya boyutu orijinalden farklı — zamanlamalar kayabilir.',
+      relinkMatch: 'eşleşme bulundu, yükleniyor…',
+      projectLoaded: n => 'proje yüklendi — '+n+' kayıt geri yüklendi',
+      rendering: 'işleniyor… bu sekmeyi kapatmayın',
+      downloadLink: 'dubbed_clip.webm dosyasını indir',
+      takeName: n => 'kayıt '+n,
+    }
+  };
+  let lang = (navigator.language||'').toLowerCase().startsWith('tr') ? 'tr' : 'en';
+  try{ const saved = localStorage.getItem('dubtool_lang'); if(saved) lang = saved; }catch(e){}
+  function T(key, ...args){
+    const entry = STRINGS[lang][key];
+    return typeof entry === 'function' ? entry(...args) : entry;
+  }
+  function applyLang(){
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach(el=>{
+      const key = el.getAttribute('data-i18n');
+      const val = STRINGS[lang][key];
+      if(val != null) el.innerHTML = val;
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el=>{
+      const key = el.getAttribute('data-i18n-title');
+      const val = STRINGS[lang][key];
+      if(val != null) el.title = val;
+    });
+    langBtn.textContent = lang === 'tr' ? 'ENGLISH' : 'TÜRKÇE';
+    // re-render anything built dynamically so it picks up the new language too
+    if(typeof renderTakes === 'function') renderTakes();
+    if(typeof updateRegion === 'function') updateRegion();
+  }
+
+  const $ = id => document.getElementById(id);
+  const drop = $('drop'), fileInput = $('fileInput'), vid = $('vid'), langBtn = $('langBtn');
+  const mainPanel = $('mainPanel'), fname = $('fname');
+  const waveCanvas = $('waveCanvas'), waveWrap = $('waveWrap'), regionBox = $('regionBox'), playCursor = $('playCursor');
+  const waveScroll = $('waveScroll'), zoomInBtn = $('zoomInBtn'), zoomOutBtn = $('zoomOutBtn'),
+        zoomFitBtn = $('zoomFitBtn'), zoomPct = $('zoomPct');
+  const takeMarks = $('takeMarks');
+  const selTime = $('selTime'), recBtn = $('recBtn'), playSel = $('playSel'), clearSel = $('clearSel');
+  const micCanvas = $('micCanvas'), takeCanvas = $('takeCanvas');
+  const micSelect = $('micSelect'), micRefresh = $('micRefresh');
+  const takesList = $('takesList'), takeCount = $('takeCount');
+  const exportBtn = $('exportBtn'), exportStatus = $('exportStatus');
+  const saveProjBtn = $('saveProjBtn'), loadProjBtn = $('loadProjBtn'), loadProjInput = $('loadProjInput');
+  const previewFullBtn = $('previewFullBtn'), stopPreviewBtn = $('stopPreviewBtn'), previewStatus = $('previewStatus');
+  const exportWavBtn = $('exportWavBtn'), exportMp3Btn = $('exportMp3Btn'), exportAudioStatus = $('exportAudioStatus');
+  const relinkPanel = $('relinkPanel'), relinkExpect = $('relinkExpect'), relinkBtn = $('relinkBtn'),
+        relinkInput = $('relinkInput'), relinkStatus = $('relinkStatus');
+
+  let audioCtx, originalBuffer = null, duration = 0;
+  let selStart = null, selEnd = null, dragging = false;
+  let takes = []; // {id, start, end, buffer, blobUrl, takeBlob}
+  let takeIdSeq = 1;
+  let mediaRecorder, micStream, recChunks = [], recAnalyser, recRAF;
+  let lastTakeBuffer = null;
+  let sourceFileMeta = null;      // {name, size, duration} of the currently loaded video
+  let pendingProject = null;      // parsed project waiting on a video relink
+  let pxPerSec = 0;               // current horizontal zoom, in pixels-per-second of audio
+  let fitPxPerSec = 0;            // the pxPerSec that exactly fits the container width — the zoom-out floor
+  let isFitZoom = true;           // true while at (or below) fit level — resize keeps it fit automatically
+
+  // ---------- File loading ----------
+  drop.onclick = () => fileInput.click();
+  ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e=>{e.preventDefault(); drop.classList.add('drag');}));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e=>{e.preventDefault(); drop.classList.remove('drag');}));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) loadFile(f); });
+  fileInput.addEventListener('change', e => { const f = e.target.files[0]; if(f) loadFile(f); });
+
+  async function loadFile(file, isRelink){
+    fname.textContent = file.name;
+    mainPanel.style.display = 'block';
+    const url = URL.createObjectURL(file);
+    vid.src = url;
+    vid.muted = false;
+    sourceFileMeta = {name:file.name, size:file.size};
+
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    exportStatus.textContent = T('decodingAudio');
+    const arrayBuf = await file.arrayBuffer();
+    audioCtx.decodeAudioData(arrayBuf.slice(0), (buf)=>{
+      originalBuffer = buf;
+      duration = buf.duration;
+      sourceFileMeta.duration = buf.duration;
+      fitPxPerSec = computeFitPxPerSec();
+      pxPerSec = fitPxPerSec;
+      isFitZoom = true;
+      drawWaveform(buf);
+      zoomPct.textContent = '100%';
+      exportStatus.textContent = '';
+      exportBtn.disabled = false;
+      saveProjBtn.disabled = false;
+      previewFullBtn.disabled = false;
+      exportWavBtn.disabled = false;
+      exportMp3Btn.disabled = false;
+      if(isRelink && pendingProject) applyPendingProject();
+    }, (err)=>{
+      exportStatus.textContent = T('couldNotDecodeAudio');
+      console.error(err);
+    });
+  }
+
+  // ---------- Waveform drawing (zoomable) ----------
+  const MAX_PX_PER_SEC = 2000; // fine enough to isolate single syllables on a long clip
+  const ZOOM_STEP = 1.6;
+
+  function computeFitPxPerSec(){
+    return duration ? (waveScroll.clientWidth / duration) : 0;
+  }
+
+  function currentContentWidth(){
+    return Math.max(waveScroll.clientWidth, duration * pxPerSec);
+  }
+
+  function drawWaveform(buf){
+    const dpr = window.devicePixelRatio||1;
+    const w = Math.max(1, Math.round(currentContentWidth()));
+    waveWrap.style.width = w+'px';
+    waveCanvas.style.width = w+'px';
+    waveCanvas.width = w*dpr; waveCanvas.height = 90*dpr;
+    waveCanvas.style.height = '90px';
+    const ctx = waveCanvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0,0,w,90);
+
+    const data = buf.getChannelData(0);
+    const mid = 45;
+    ctx.fillStyle = '#4dff8f';
+    if(w >= data.length){
+      // zoomed in past one sample per pixel — draw individual sample points as a real line so it doesn't look blank
+      ctx.beginPath();
+      for(let i=0;i<data.length;i++){
+        const x = (i/data.length)*w;
+        const y = mid - data[i]*mid;
+        i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      }
+      ctx.strokeStyle = '#4dff8f'; ctx.lineWidth = 1.5; ctx.stroke();
+    } else {
+      const step = Math.ceil(data.length / w);
+      for(let x=0; x<w; x++){
+        let min=1, max=-1;
+        const start = x*step;
+        for(let i=0;i<step;i++){
+          const v = data[start+i] || 0;
+          if(v<min) min=v; if(v>max) max=v;
+        }
+        const barH = Math.max(1,(max-min)*mid);
+        ctx.fillRect(x, mid-(max*mid), 1, barH);
+      }
+    }
+  }
+
+  function redrawAll(){
+    if(!originalBuffer) return;
+    drawWaveform(originalBuffer);
+    renderTakeMarks();
+    updateRegion();
+  }
+
+  function setZoom(newPxPerSec, anchorClientX){
+    if(!duration) return;
+    newPxPerSec = Math.max(fitPxPerSec, Math.min(MAX_PX_PER_SEC, newPxPerSec));
+    // keep whatever time was under the cursor/center still under it after zooming
+    const rect = waveScroll.getBoundingClientRect();
+    const anchorX = (anchorClientX!=null) ? (anchorClientX - rect.left) : (waveScroll.clientWidth/2);
+    const anchorTime = (waveScroll.scrollLeft + anchorX) / pxPerSec;
+
+    pxPerSec = newPxPerSec;
+    isFitZoom = (pxPerSec <= fitPxPerSec + 0.001);
+    redrawAll();
+    waveScroll.scrollLeft = Math.max(0, anchorTime*pxPerSec - anchorX);
+    zoomPct.textContent = Math.round((pxPerSec/fitPxPerSec)*100) + '%';
+  }
+
+  zoomInBtn.onclick = ()=> setZoom(pxPerSec * ZOOM_STEP);
+  zoomOutBtn.onclick = ()=> setZoom(pxPerSec / ZOOM_STEP);
+  zoomFitBtn.onclick = ()=> setZoom(fitPxPerSec);
+
+  waveScroll.addEventListener('wheel', e=>{
+    if(!duration) return;
+    if(!(e.ctrlKey || e.metaKey)) return; // plain scroll = normal panning; ctrl/cmd+scroll = zoom
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? ZOOM_STEP : 1/ZOOM_STEP;
+    setZoom(pxPerSec * factor, e.clientX);
+  }, {passive:false});
+
+  window.addEventListener('resize', ()=>{
+    if(!originalBuffer) return;
+    fitPxPerSec = computeFitPxPerSec();
+    if(isFitZoom) pxPerSec = fitPxPerSec; // stay fitted unless the user has manually zoomed in
+    redrawAll();
+    zoomPct.textContent = Math.round((pxPerSec/fitPxPerSec)*100) + '%';
+  });
+
+  // ---------- Selection ----------
+  function xToTime(x){
+    const rect = waveWrap.getBoundingClientRect();
+    const frac = Math.min(1,Math.max(0,(x-rect.left)/rect.width));
+    return frac*duration;
+  }
+  function timeToX(t){ return t*pxPerSec; }
+  function fmt(t){ if(t==null) return '--:--'; const m=Math.floor(t/60), s=(t%60).toFixed(2); return m+':'+(s<10?'0':'')+s; }
+
+  waveWrap.addEventListener('mousedown', e=>{
+    if(!duration) return;
+    dragging = true;
+    selStart = xToTime(e.clientX); selEnd = selStart;
+    updateRegion();
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!dragging) return;
+    selEnd = xToTime(e.clientX);
+    updateRegion();
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(!dragging) return;
+    dragging = false;
+    if(selStart!=null && selEnd!=null && Math.abs(selEnd-selStart) < 0.05){ selStart=selEnd=null; updateRegion(); }
+  });
+
+  function updateRegion(){
+    if(selStart==null){
+      regionBox.style.display='none';
+      selTime.textContent = T('noSelection');
+      recBtn.disabled = true;
+      return;
+    }
+    const s = Math.min(selStart,selEnd), e = Math.max(selStart,selEnd);
+    regionBox.style.display='block';
+    regionBox.style.left = timeToX(s)+'px';
+    regionBox.style.width = Math.max(2,(timeToX(e)-timeToX(s)))+'px';
+    selTime.textContent = T('selRange', fmt(s), fmt(e), fmt(e-s));
+    recBtn.disabled = (e-s) < 0.1;
+  }
+
+  clearSel.onclick = ()=>{ selStart=selEnd=null; updateRegion(); };
+
+  playSel.onclick = ()=>{
+    if(selStart==null) return;
+    stopFullPreview();
+    const s = Math.min(selStart,selEnd), e = Math.max(selStart,selEnd);
+    vid.currentTime = s; vid.muted = false; vid.play();
+    const stop = ()=>{ if(vid.currentTime>=e){ vid.pause(); vid.removeEventListener('timeupdate',stop);} };
+    vid.addEventListener('timeupdate',stop);
+  };
+
+  vid.addEventListener('timeupdate', ()=>{
+    if(!duration) return;
+    playCursor.style.display='block';
+    const x = timeToX(vid.currentTime);
+    playCursor.style.left = x+'px';
+    // keep the playhead visible while scrolled in on a zoomed-in waveform
+    const viewLeft = waveScroll.scrollLeft, viewRight = viewLeft + waveScroll.clientWidth;
+    if(x < viewLeft || x > viewRight){
+      waveScroll.scrollLeft = Math.max(0, x - waveScroll.clientWidth*0.15);
+    }
+  });
+
+  // ---------- Mic device selection ----------
+  async function refreshMicDevices(){
+    try{
+      // labels are only populated after a permission grant — request briefly if needed
+      let devices = await navigator.mediaDevices.enumerateDevices();
+      let mics = devices.filter(d=>d.kind==='audioinput');
+      if(mics.length && !mics[0].label){
+        try{
+          const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+          if(!micStream) micStream = tmp; else tmp.getTracks().forEach(t=>t.stop());
+          devices = await navigator.mediaDevices.enumerateDevices();
+          mics = devices.filter(d=>d.kind==='audioinput');
+        }catch(err){ /* permission not granted yet, list will just show unlabeled */ }
+      }
+      const prev = micSelect.value;
+      micSelect.innerHTML = '<option value="">'+T('defaultDevice')+'</option>';
+      mics.forEach((d,i)=>{
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.textContent = d.label || T('micName', i+1);
+        micSelect.appendChild(opt);
+      });
+      if(prev && [...micSelect.options].some(o=>o.value===prev)) micSelect.value = prev;
+    }catch(err){ console.error('device enumeration failed', err); }
+  }
+  micRefresh.onclick = refreshMicDevices;
+  navigator.mediaDevices && navigator.mediaDevices.addEventListener &&
+    navigator.mediaDevices.addEventListener('devicechange', refreshMicDevices);
+  refreshMicDevices();
+
+  // ---------- Countdown beeps ----------
+  function playBeeps(count, onEach){
+    return new Promise(resolve=>{
+      const interval = 0.5; // seconds between beep starts
+      const startAt = audioCtx.currentTime + 0.05;
+      for(let i=0;i<count;i++){
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, startAt + i*interval);
+        gain.gain.exponentialRampToValueAtTime(0.25, startAt + i*interval + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + i*interval + 0.13);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(startAt + i*interval);
+        osc.stop(startAt + i*interval + 0.15);
+        if(onEach) setTimeout(()=>onEach(i), (startAt + i*interval - audioCtx.currentTime)*1000);
+      }
+      const totalMs = (startAt - audioCtx.currentTime + count*interval)*1000;
+      setTimeout(resolve, totalMs);
+    });
+  }
+
+  // ---------- Mic recording ----------
+  recBtn.onclick = async ()=>{
+    if(recBtn.classList.contains('active')){ stopRecording(); return; }
+    if(selStart==null) return;
+    stopFullPreview();
+    const s = Math.min(selStart,selEnd), e = Math.max(selStart,selEnd);
+    const chosenId = micSelect.value;
+    const constraints = { audio: chosenId ? {deviceId:{exact:chosenId}} : true };
+    const needsNewStream = !micStream || micStream.getAudioTracks().every(t=>t.readyState==='ended')
+      || (chosenId && micStream.getAudioTracks()[0]?.getSettings().deviceId !== chosenId);
+    if(needsNewStream){
+      try{
+        micStream = await navigator.mediaDevices.getUserMedia(constraints);
+        // labels are unlocked now — refresh so the dropdown shows real names
+        refreshMicDevices();
+      }catch(err){ alert(T('micOpenError', err.message)); return; }
+    }
+
+    // live mic scope
+    const micCtx = audioCtx;
+    const src = micCtx.createMediaStreamSource(micStream);
+    recAnalyser = micCtx.createAnalyser();
+    recAnalyser.fftSize = 1024;
+    src.connect(recAnalyser);
+    drawMicScope();
+
+    recChunks = [];
+    mediaRecorder = new MediaRecorder(micStream);
+    mediaRecorder.ondataavailable = ev => { if(ev.data.size>0) recChunks.push(ev.data); };
+    mediaRecorder.onstop = async ()=>{
+      cancelAnimationFrame(recRAF);
+      const blob = new Blob(recChunks, {type: mediaRecorder.mimeType||'audio/webm'});
+      const arrBuf = await blob.arrayBuffer();
+      audioCtx.decodeAudioData(arrBuf, (buf)=>{
+        lastTakeBuffer = buf;
+        drawTakeWave(buf);
+        addTake(s, e, buf, URL.createObjectURL(blob), blob);
+      }, ()=>{ exportStatus.textContent=T('couldNotDecodeRecording'); });
+    };
+
+    // 3-beep count-in so the user knows exactly when to start speaking
+    vid.currentTime = s; vid.muted = true;
+    recBtn.disabled = true;
+    recBtn.textContent = '● 3…';
+    await playBeeps(3, (i)=>{ recBtn.textContent = '● ' + (3-i) + '…'; });
+
+    recBtn.disabled = false;
+    vid.play();
+    const stopAtEnd = ()=>{
+      if(vid.currentTime>=e){ vid.pause(); vid.removeEventListener('timeupdate',stopAtEnd); stopRecording(); }
+    };
+    vid.addEventListener('timeupdate', stopAtEnd);
+
+    mediaRecorder.start();
+    recBtn.classList.add('active');
+    recBtn.textContent = T('recStopLabel');
+  };
+
+  function stopRecording(){
+    if(mediaRecorder && mediaRecorder.state!=='inactive') mediaRecorder.stop();
+    recBtn.classList.remove('active');
+    recBtn.textContent = T('recordVoiceover');
+    vid.muted = false;
+  }
+
+  // Spacebar is the reflex most testers reach for to "stop" — but the video's native
+  // space-to-pause behavior fires mid-recording and leaves the recorder/video state out of sync.
+  // While actively recording, hijack space to stop the take cleanly instead.
+  window.addEventListener('keydown', e=>{
+    if(e.code !== 'Space' && e.key !== ' ') return;
+    const tag = (e.target && e.target.tagName) || '';
+    if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // don't eat spaces while typing/renaming
+    if(recBtn.classList.contains('active')){
+      e.preventDefault();
+      e.stopPropagation();
+      stopRecording();
+    }
+  }, true);
+
+  function drawMicScope(){
+    const dpr = window.devicePixelRatio||1;
+    const w = micCanvas.clientWidth||300;
+    micCanvas.width = w*dpr; micCanvas.height = 70*dpr;
+    const ctx = micCanvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    const data = new Uint8Array(recAnalyser.fftSize);
+    function draw(){
+      recRAF = requestAnimationFrame(draw);
+      recAnalyser.getByteTimeDomainData(data);
+      ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0,0,w,70);
+      ctx.strokeStyle = '#ff3b00'; ctx.lineWidth = 1.5; ctx.beginPath();
+      const slice = w/data.length;
+      for(let i=0;i<data.length;i++){
+        const v = data[i]/128.0; const y = v*35;
+        i===0 ? ctx.moveTo(i*slice,y) : ctx.lineTo(i*slice,y);
+      }
+      ctx.stroke();
+    }
+    draw();
+  }
+
+  function drawTakeWave(buf){
+    const dpr = window.devicePixelRatio||1;
+    const w = takeCanvas.clientWidth||300;
+    takeCanvas.width = w*dpr; takeCanvas.height = 70*dpr;
+    const ctx = takeCanvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0,0,w,70);
+    const data = buf.getChannelData(0);
+    const step = Math.ceil(data.length/w);
+    const mid=35;
+    ctx.fillStyle = '#4dff8f';
+    for(let x=0;x<w;x++){
+      let min=1,max=-1; const start=x*step;
+      for(let i=0;i<step;i++){ const v=data[start+i]||0; if(v<min)min=v; if(v>max)max=v; }
+      ctx.fillRect(x, mid-(max*mid), 1, Math.max(1,(max-min)*mid));
+    }
+  }
+
+  function renderTakeMarks(){
+    takeMarks.innerHTML = '';
+    if(!duration) return;
+    takes.forEach(t=>{
+      const el = document.createElement('div');
+      el.className = 'take-mark';
+      el.title = T('markTooltip', t.name||'take', fmt(t.start), fmt(t.end));
+      el.style.left = timeToX(t.start)+'px';
+      el.style.width = Math.max(2,(timeToX(t.end)-timeToX(t.start)))+'px';
+      el.addEventListener('mousedown', ev => startDragTake(ev, t, el));
+
+      const leftHandle = document.createElement('div');
+      leftHandle.className = 'crop-handle left';
+      leftHandle.title = T('cropLeftTitle');
+      leftHandle.addEventListener('mousedown', ev => startCropTake(ev, t, el, 'left'));
+
+      const rightHandle = document.createElement('div');
+      rightHandle.className = 'crop-handle right';
+      rightHandle.title = T('cropRightTitle');
+      rightHandle.addEventListener('mousedown', ev => startCropTake(ev, t, el, 'right'));
+
+      el.appendChild(leftHandle);
+      el.appendChild(rightHandle);
+      takeMarks.appendChild(el);
+    });
+  }
+  window.addEventListener('resize', ()=>{ if(originalBuffer) renderTakeMarks(); });
+
+  // ---------- Crop a dubbed take's edges to cut recorded silence, without touching what's already been said ----------
+  const MIN_TAKE_LEN = 0.08; // seconds — floor so a take can't be dragged down to nothing
+  function startCropTake(ev, t, el, side){
+    ev.preventDefault();
+    ev.stopPropagation(); // don't trigger the whole-block move-drag underneath
+    stopFullPreview();
+    stopRefPlayback();
+
+    const handle = side==='left' ? el.querySelector('.crop-handle.left') : el.querySelector('.crop-handle.right');
+    handle.classList.add('cropping');
+
+    const wrapWidth = waveWrap.clientWidth;
+    const startMouseX = ev.clientX;
+    const origStart = t.start, origEnd = t.end;
+    const origTrimStart = t.trimStart || 0;
+    const origTrimEnd = (t.trimEnd!=null ? t.trimEnd : t.buffer.duration);
+
+    const others = takes.filter(x => x.id !== t.id).sort((a,b)=>a.start-b.start);
+    const prevNeighbor = others.filter(x => x.end <= origStart).pop();
+    const nextNeighbor = others.find(x => x.start >= origEnd);
+
+    function onMove(e){
+      const dxPx = e.clientX - startMouseX;
+      const dxTime = (dxPx / wrapWidth) * duration;
+
+      if(side === 'left'){
+        // moving right crops audio out of the start (silence at the top of the take);
+        // moving left un-crops back toward the original recorded start, never before it
+        const floor = Math.max(prevNeighbor ? prevNeighbor.end : 0, origStart - origTrimStart);
+        const ceiling = origEnd - MIN_TAKE_LEN;
+        const newStart = Math.max(floor, Math.min(ceiling, origStart + dxTime));
+        const shift = newStart - origStart;
+        t.start = newStart;
+        t.trimStart = origTrimStart + shift;
+        el.style.left = timeToX(t.start) + 'px';
+        el.style.width = Math.max(2, timeToX(t.end) - timeToX(t.start)) + 'px';
+      } else {
+        // moving left crops audio out of the end (trailing silence);
+        // moving right un-crops back toward the original recorded end, never past it
+        const bufferTail = t.buffer.duration - origTrimEnd;
+        const ceiling = Math.min(nextNeighbor ? nextNeighbor.start : duration, origEnd + bufferTail);
+        const floor = origStart + MIN_TAKE_LEN;
+        const newEnd = Math.max(floor, Math.min(ceiling, origEnd + dxTime));
+        const shift = newEnd - origEnd;
+        t.end = newEnd;
+        t.trimEnd = origTrimEnd + shift;
+        el.style.width = Math.max(2, timeToX(t.end) - timeToX(t.start)) + 'px';
+      }
+    }
+    function onUp(){
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      handle.classList.remove('cropping');
+      renderTakes(); // rebuild rows + markers with the settled crop
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  // ---------- Drag a dubbed take to shift its timing without re-recording ----------
+  function startDragTake(ev, t, el){
+    ev.preventDefault();
+    ev.stopPropagation(); // don't let this bubble into the waveform's own selection-drag
+    stopFullPreview();
+
+    const len = t.end - t.start;
+    const wrapWidth = waveWrap.clientWidth;
+    const startMouseX = ev.clientX;
+    const startTime = t.start;
+    el.classList.add('dragging');
+
+    // figure out the legal range this take can slide within, bounded by clip edges
+    // and by its immediate neighbors on the timeline (no overlapping another take)
+    const others = takes.filter(x => x.id !== t.id).sort((a,b)=>a.start-b.start);
+    const prevNeighbor = others.filter(x => x.end <= startTime).pop();
+    const nextNeighbor = others.find(x => x.start >= t.end);
+    const minStart = prevNeighbor ? prevNeighbor.end : 0;
+    const maxStart = (nextNeighbor ? nextNeighbor.start : duration) - len;
+
+    function onMove(e){
+      const dxPx = e.clientX - startMouseX;
+      const dxTime = (dxPx / wrapWidth) * duration;
+      let newStart = startTime + dxTime;
+      newStart = Math.max(minStart, Math.min(maxStart, newStart));
+      el.style.left = timeToX(newStart) + 'px';
+      el._pendingStart = newStart; // stash live value for the mouseup handler
+    }
+    function onUp(){
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      el.classList.remove('dragging');
+      const newStart = el._pendingStart;
+      if(newStart != null && Math.abs(newStart - startTime) > 0.01){
+        t.start = newStart;
+        t.end = newStart + len;
+      }
+      renderTakes(); // rebuild rows + markers with the settled timing
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  // ---------- Takes management ----------
+  function addTake(s,e,buffer,blobUrl,takeBlob){
+    const t = {id:takeIdSeq++, start:s, end:e, buffer, blobUrl, takeBlob, name:T('takeName', takeIdSeq-1),
+      trimStart: 0, trimEnd: buffer.duration};
+    takes = takes.filter(x => !(x.start<e && x.end>s)); // remove overlapping older takes
+    takes.push(t);
+    takes.sort((a,b)=>a.start-b.start);
+    renderTakes();
+    drawTakeWave(buffer);
+  }
+
+  function renderTakes(){
+    takeCount.textContent = takes.length;
+    renderTakeMarks();
+    if(!takes.length){ takesList.innerHTML = '<div class="empty">no takes yet — select a region above and hit record</div>'; return; }
+    takesList.innerHTML = '';
+    takes.forEach(t=>{
+      const row = document.createElement('div');
+      row.className='take-row';
+
+      const nameInput = document.createElement('input');
+      nameInput.className = 'take-name';
+      nameInput.value = t.name || T('takeName', t.id);
+      nameInput.spellcheck = false;
+      nameInput.title = T('renameTake');
+      nameInput.addEventListener('change', ()=>{
+        t.name = nameInput.value.trim() || T('takeName', t.id);
+        nameInput.value = t.name;
+      });
+      nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') nameInput.blur(); });
+
+      const rng = document.createElement('span'); rng.className='rng';
+      rng.textContent = fmt(t.start)+' → '+fmt(t.end);
+      const fill = document.createElement('span'); fill.className='fill';
+      const usedDur = (t.end - t.start);
+      const cropped = (t.trimStart||0) > 0.01 || (t.buffer.duration - (t.trimEnd!=null?t.trimEnd:t.buffer.duration)) > 0.01;
+      fill.textContent = T('usedLabel', usedDur.toFixed(2)) + (cropped ? T('croppedSuffix', t.buffer.duration.toFixed(2)) : '');
+
+      const playB = document.createElement('button'); playB.className='btn'; playB.textContent=T('playTake');
+      playB.onclick = ()=> playTakeWithVideo(t);
+      const delB = document.createElement('button'); delB.className='btn'; delB.textContent=T('deleteTake');
+      delB.onclick = ()=>{ takes = takes.filter(x=>x.id!==t.id); renderTakes(); };
+
+      row.appendChild(nameInput);
+      row.appendChild(rng);
+      row.appendChild(fill);
+      row.appendChild(playB);
+      row.appendChild(delB);
+      takesList.appendChild(row);
+    });
+  }
+
+  // ---------- Full-dub preview: plays the whole video, swapping audio in during each take's region ----------
+  let previewActive = false, previewHandler = null, previewCurrentTakeId = null, previewTakeSrc = null;
+
+  function stopFullPreview(){
+    if(!previewActive) return;
+    previewActive = false;
+    if(previewHandler){ vid.removeEventListener('timeupdate', previewHandler); previewHandler = null; }
+    vid.removeEventListener('ended', stopFullPreview);
+    if(previewTakeSrc){ try{ previewTakeSrc.stop(); }catch(e){} previewTakeSrc = null; }
+    previewCurrentTakeId = null;
+    vid.pause();
+    vid.volume = 1; vid.muted = false;
+    previewFullBtn.style.display = '';
+    stopPreviewBtn.style.display = 'none';
+    previewStatus.textContent = '';
+  }
+
+  function trimBounds(t){
+    const trimStart = t.trimStart || 0;
+    const trimEnd = (t.trimEnd!=null ? t.trimEnd : t.buffer.duration);
+    return { trimStart, trimEnd, trimDur: Math.max(0, trimEnd - trimStart) };
+  }
+
+  function startFullPreview(){
+    if(!originalBuffer) return;
+    stopFullPreview(); // in case one's already running
+    stopRefPlayback();
+
+    const sorted = [...takes].sort((a,b)=>a.start-b.start);
+    previewActive = true;
+    vid.pause();
+    vid.currentTime = 0;
+    vid.muted = false;
+    vid.volume = 1;
+    previewFullBtn.style.display = 'none';
+    stopPreviewBtn.style.display = '';
+    previewStatus.textContent = T('playingFullDub');
+
+    previewHandler = ()=>{
+      const now = vid.currentTime;
+      const inTake = sorted.find(t => now >= t.start && now < t.end);
+
+      if(inTake && previewCurrentTakeId !== inTake.id){
+        // entering a dubbed region — mute the original and start this take's (trimmed) audio at the right offset
+        vid.volume = 0;
+        if(previewTakeSrc){ try{ previewTakeSrc.stop(); }catch(e){} }
+        const { trimStart, trimEnd } = trimBounds(inTake);
+        const intoTake = Math.max(0, now - inTake.start);
+        const offset = Math.min(trimEnd, trimStart + intoTake);
+        const dur = Math.max(0, trimEnd - offset);
+        const src = audioCtx.createBufferSource();
+        src.buffer = inTake.buffer;
+        src.connect(audioCtx.destination);
+        src.start(audioCtx.currentTime, offset, dur);
+        previewTakeSrc = src;
+        previewCurrentTakeId = inTake.id;
+      } else if(!inTake && previewCurrentTakeId !== null){
+        // leaving a dubbed region — hand back to the original audio
+        if(previewTakeSrc){ try{ previewTakeSrc.stop(); }catch(e){} previewTakeSrc = null; }
+        vid.volume = 1;
+        previewCurrentTakeId = null;
+      }
+    };
+    vid.addEventListener('timeupdate', previewHandler);
+    vid.addEventListener('ended', stopFullPreview);
+    vid.play();
+  }
+
+  previewFullBtn.onclick = startFullPreview;
+  stopPreviewBtn.onclick = stopFullPreview;
+
+  const REF_DUCK_VOLUME = 0.12; // how low the original video gets ducked while a take reference-plays
+  let refTakeSrc = null, refStopHandler = null;
+
+  function stopRefPlayback(){
+    if(refTakeSrc){ try{ refTakeSrc.stop(); }catch(e){} refTakeSrc = null; }
+    if(refStopHandler){ vid.removeEventListener('timeupdate', refStopHandler); refStopHandler = null; }
+  }
+
+  function playTakeWithVideo(t){
+    stopFullPreview();
+    // stop any reference playback already in progress
+    stopRefPlayback();
+
+    vid.pause();
+    vid.currentTime = t.start;
+    vid.muted = false;
+    vid.volume = REF_DUCK_VOLUME; // lower, not mute — keeps it as a timing/lip-sync reference
+
+    const { trimStart, trimDur } = trimBounds(t);
+    const src = audioCtx.createBufferSource();
+    src.buffer = t.buffer;
+    src.connect(audioCtx.destination);
+    src.start(audioCtx.currentTime, trimStart, trimDur);
+    refTakeSrc = src;
+    vid.play();
+
+    refStopHandler = ()=>{
+      if(vid.currentTime >= t.end){
+        vid.pause();
+        vid.volume = 1;
+        vid.removeEventListener('timeupdate', refStopHandler);
+        refStopHandler = null;
+        if(refTakeSrc){ try{ refTakeSrc.stop(); }catch(e){} refTakeSrc = null; }
+      }
+    };
+    vid.addEventListener('timeupdate', refStopHandler);
+
+    src.onended = ()=>{
+      vid.pause();
+      vid.volume = 1;
+      if(refStopHandler){ vid.removeEventListener('timeupdate', refStopHandler); refStopHandler = null; }
+      refTakeSrc = null;
+    };
+  }
+
+  // ---------- Project save/load (.dubproj = zip) ----------
+  // Format inside the zip:
+  //   manifest.json  — { version, sourceVideo:{name,size,duration}, takes:[{id,start,end,fileName}], selection, savedAt }
+  //   takes/take-<id>.webm — the raw recorded audio for each take
+  // The original video itself is NOT embedded (keeps project files small); it's relinked by
+  // name+size+duration on load, since browsers can't hold a persistent path to a local file.
+
+  saveProjBtn.onclick = async ()=>{
+    if(!originalBuffer || !sourceFileMeta){ return; }
+    if(typeof JSZip === 'undefined'){ alert(T('zipLoadFail')); return; }
+    saveProjBtn.disabled = true;
+    const prevLabel = saveProjBtn.textContent;
+    saveProjBtn.textContent = T('saving');
+
+    const zip = new JSZip();
+    const manifest = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      sourceVideo: { name: sourceFileMeta.name, size: sourceFileMeta.size, duration: sourceFileMeta.duration },
+      selection: (selStart!=null) ? { start: Math.min(selStart,selEnd), end: Math.max(selStart,selEnd) } : null,
+      takes: takes.map(t => ({ id: t.id, start: t.start, end: t.end, name: t.name,
+        trimStart: t.trimStart||0, trimEnd: (t.trimEnd!=null ? t.trimEnd : t.buffer.duration),
+        fileName: 'take-'+t.id+'.webm' }))
+    };
+    zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+    const takesFolder = zip.folder('takes');
+    for(const t of takes){
+      if(t.takeBlob) takesFolder.file('take-'+t.id+'.webm', t.takeBlob);
+    }
+
+    const blob = await zip.generateAsync({type:'blob'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const base = sourceFileMeta.name.replace(/\.[^.]+$/,'');
+    a.href = url; a.download = base+'.dubproj';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+
+    saveProjBtn.disabled = false;
+    saveProjBtn.textContent = prevLabel;
+  };
+
+  loadProjBtn.onclick = () => loadProjInput.click();
+  loadProjInput.addEventListener('change', e => { const f = e.target.files[0]; if(f) openProject(f); });
+
+  async function openProject(file){
+    if(typeof JSZip === 'undefined'){ alert(T('zipLoadFail')); return; }
+    let zip;
+    try{ zip = await JSZip.loadAsync(file); }
+    catch(err){ alert(T('invalidDubproj')); return; }
+
+    const manifestEntry = zip.file('manifest.json');
+    if(!manifestEntry){ alert(T('missingManifest')); return; }
+    const manifest = JSON.parse(await manifestEntry.async('string'));
+
+    // pull the take audio blobs out of the zip now, while it's open
+    const loadedTakes = [];
+    for(const tRef of manifest.takes){
+      const entry = zip.file('takes/'+tRef.fileName);
+      if(!entry) continue;
+      const blob = await entry.async('blob');
+      loadedTakes.push({ id: tRef.id, start: tRef.start, end: tRef.end, name: tRef.name,
+        trimStart: tRef.trimStart, trimEnd: tRef.trimEnd, blob });
+    }
+
+    pendingProject = { manifest, loadedTakes };
+
+    // reset current session before applying
+    takes = []; takeIdSeq = 1; selStart = selEnd = null;
+    mainPanel.style.display = 'none';
+    relinkPanel.style.display = 'block';
+    const sv = manifest.sourceVideo;
+    relinkExpect.textContent = T('relinkExpects', sv.name, fmtBytes(sv.size), fmt(sv.duration));
+    relinkStatus.textContent = '';
+  }
+
+  relinkBtn.onclick = () => relinkInput.click();
+  relinkInput.addEventListener('change', e => { const f = e.target.files[0]; if(f) tryRelink(f); });
+
+  async function tryRelink(file){
+    const sv = pendingProject.manifest.sourceVideo;
+    relinkStatus.textContent = T('checking');
+    const nameMatch = file.name === sv.name;
+    const sizeMatch = file.size === sv.size;
+    if(!nameMatch && !sizeMatch){
+      relinkStatus.textContent = T('relinkMismatch');
+    } else if(!sizeMatch){
+      relinkStatus.textContent = T('relinkSizeDiff');
+    } else {
+      relinkStatus.textContent = T('relinkMatch');
+    }
+    relinkPanel.style.display = 'none';
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    await loadFile(file, true);
+  }
+
+  function applyPendingProject(){
+    const { manifest, loadedTakes } = pendingProject;
+    let pending = loadedTakes.length;
+    if(!pending){ finishApply(); return; }
+    loadedTakes.forEach(async lt => {
+      const arrBuf = await lt.blob.arrayBuffer();
+      audioCtx.decodeAudioData(arrBuf, (buf)=>{
+        const t = { id: lt.id, start: lt.start, end: lt.end, buffer: buf,
+          blobUrl: URL.createObjectURL(lt.blob), takeBlob: lt.blob, name: lt.name || T('takeName', lt.id),
+          trimStart: lt.trimStart || 0, trimEnd: (lt.trimEnd!=null ? lt.trimEnd : buf.duration) };
+        takes.push(t);
+        if(lt.id >= takeIdSeq) takeIdSeq = lt.id+1;
+        if(--pending === 0) finishApply();
+      }, ()=>{ if(--pending === 0) finishApply(); });
+    });
+    function finishApply(){
+      takes.sort((a,b)=>a.start-b.start);
+      renderTakes();
+      // "last take" scope should reflect the most recently-recorded take, not just list order
+      if(takes.length){
+        const latest = takes.reduce((a,b)=> (b.id>a.id ? b : a));
+        lastTakeBuffer = latest.buffer;
+        drawTakeWave(latest.buffer);
+      }
+      if(manifest.selection){
+        selStart = manifest.selection.start; selEnd = manifest.selection.end;
+        updateRegion();
+      }
+      pendingProject = null;
+      exportStatus.textContent = T('projectLoaded', takes.length);
+    }
+  }
+
+  function fmtBytes(n){
+    if(n>1e6) return (n/1e6).toFixed(1)+'MB';
+    if(n>1e3) return (n/1e3).toFixed(0)+'KB';
+    return n+'B';
+  }
+
+  // ---------- Export: mux canvas(video) + mixed audio into webm ----------
+  exportBtn.onclick = async ()=>{
+    if(!originalBuffer){ return; }
+    exportBtn.disabled = true;
+    exportStatus.textContent = T('rendering');
+
+    // Build mixed audio graph in real time using an offline-free live render:
+    const dest = audioCtx.createMediaStreamDestination();
+
+    // original track source, minus the muted take windows
+    const origSrc = audioCtx.createBufferSource();
+    origSrc.buffer = originalBuffer;
+    const origGain = audioCtx.createGain();
+    origSrc.connect(origGain).connect(dest);
+
+    const now = audioCtx.currentTime + 0.15;
+    // duck original gain to 0 during each take window, back to 1 outside
+    origGain.gain.setValueAtTime(1, now);
+    takes.forEach(t=>{
+      origGain.gain.setValueAtTime(1, now+t.start-0.001);
+      origGain.gain.setValueAtTime(0, now+t.start);
+      origGain.gain.setValueAtTime(0, now+t.end-0.001);
+      origGain.gain.setValueAtTime(1, now+t.end);
+    });
+
+    takes.forEach(t=>{
+      const tSrc = audioCtx.createBufferSource();
+      tSrc.buffer = t.buffer;
+      tSrc.connect(dest);
+      const trimStart = t.trimStart || 0;
+      const trimDur = (t.trimEnd!=null ? t.trimEnd : t.buffer.duration) - trimStart;
+      tSrc.start(now + t.start, trimStart, trimDur);
+    });
+
+    // draw video frames to an offscreen canvas for the video track
+    const cv = document.createElement('canvas');
+    cv.width = vid.videoWidth || 640; cv.height = vid.videoHeight || 360;
+    const cctx = cv.getContext('2d');
+    const canvasStream = cv.captureStream(30);
+    const mixedStream = new MediaStream([...canvasStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+
+    const rec = new MediaRecorder(mixedStream, {mimeType:'video/webm;codecs=vp9,opus'});
+    const outChunks = [];
+    rec.ondataavailable = e => { if(e.data.size>0) outChunks.push(e.data); };
+    rec.onstop = ()=>{
+      const blob = new Blob(outChunks, {type:'video/webm'});
+      const url = URL.createObjectURL(blob);
+      exportStatus.innerHTML = '<a class="dl" href="'+url+'" download="dubbed_clip.webm">'+T('downloadLink')+'</a>';
+      exportBtn.disabled = false;
+    };
+
+    let raf;
+    function drawFrame(){ cctx.drawImage(vid,0,0,cv.width,cv.height); raf = requestAnimationFrame(drawFrame); }
+
+    vid.currentTime = 0; vid.muted = true;
+    origSrc.start(now);
+    rec.start();
+    drawFrame();
+    vid.play();
+
+    vid.onended = ()=>{
+      cancelAnimationFrame(raf);
+      rec.stop();
+      vid.onended = null;
+      vid.muted = false;
+    };
+  };
+
+  // ---------- Export: audio-only mixdown (.wav / .mp3) for editing elsewhere ----------
+  // Reuses the same ducking + trim logic as the video export, but renders offline (instant,
+  // no real-time playback needed) since there's no video track to keep in sync with.
+  async function renderMixedAudioBuffer(){
+    const offlineCtx = new OfflineAudioContext(
+      originalBuffer.numberOfChannels,
+      Math.ceil(originalBuffer.sampleRate * originalBuffer.duration),
+      originalBuffer.sampleRate
+    );
+    const origSrc = offlineCtx.createBufferSource();
+    origSrc.buffer = originalBuffer;
+    const origGain = offlineCtx.createGain();
+    origSrc.connect(origGain).connect(offlineCtx.destination);
+
+    origGain.gain.setValueAtTime(1, 0);
+    takes.forEach(t=>{
+      origGain.gain.setValueAtTime(1, Math.max(0, t.start - 0.001));
+      origGain.gain.setValueAtTime(0, t.start);
+      origGain.gain.setValueAtTime(0, Math.max(t.start, t.end - 0.001));
+      origGain.gain.setValueAtTime(1, t.end);
+    });
+    origSrc.start(0);
+
+    takes.forEach(t=>{
+      const tSrc = offlineCtx.createBufferSource();
+      tSrc.buffer = t.buffer;
+      tSrc.connect(offlineCtx.destination);
+      const trimStart = t.trimStart || 0;
+      const trimDur = (t.trimEnd!=null ? t.trimEnd : t.buffer.duration) - trimStart;
+      tSrc.start(t.start, trimStart, trimDur);
+    });
+
+    return offlineCtx.startRendering();
+  }
+
+  function audioBufferToWavBlob(buffer){
+    const numCh = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const numFrames = buffer.length;
+    const bytesPerSample = 2; // 16-bit PCM
+    const blockAlign = numCh * bytesPerSample;
+    const dataSize = numFrames * blockAlign;
+    const bufferOut = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(bufferOut);
+
+    function writeStr(offset, str){ for(let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); }
+    writeStr(0, 'RIFF'); view.setUint32(4, 36+dataSize, true); writeStr(8, 'WAVE');
+    writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+    view.setUint16(22, numCh, true); view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate*blockAlign, true); view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true); writeStr(36, 'data'); view.setUint32(40, dataSize, true);
+
+    const channels = [];
+    for(let c=0;c<numCh;c++) channels.push(buffer.getChannelData(c));
+    let offset = 44;
+    for(let i=0;i<numFrames;i++){
+      for(let c=0;c<numCh;c++){
+        const s = Math.max(-1, Math.min(1, channels[c][i]));
+        view.setInt16(offset, s < 0 ? s*0x8000 : s*0x7FFF, true);
+        offset += 2;
+      }
+    }
+    return new Blob([bufferOut], {type:'audio/wav'});
+  }
+
+  function audioBufferToMp3Blob(buffer){
+    const numCh = Math.min(2, buffer.numberOfChannels); // lamejs supports mono/stereo
+    const sampleRate = buffer.sampleRate;
+    const encoder = new lamejs.Mp3Encoder(numCh, sampleRate, 192);
+    const chunkSize = 1152;
+    const mp3Data = [];
+
+    const left = buffer.getChannelData(0);
+    const right = numCh>1 ? buffer.getChannelData(1) : null;
+    const toInt16 = (f32)=>{
+      const out = new Int16Array(f32.length);
+      for(let i=0;i<f32.length;i++){ const s = Math.max(-1, Math.min(1, f32[i])); out[i] = s<0 ? s*0x8000 : s*0x7FFF; }
+      return out;
+    };
+    const leftI16 = toInt16(left);
+    const rightI16 = right ? toInt16(right) : null;
+
+    for(let i=0;i<leftI16.length;i+=chunkSize){
+      const lChunk = leftI16.subarray(i, i+chunkSize);
+      let mp3buf;
+      if(rightI16){
+        const rChunk = rightI16.subarray(i, i+chunkSize);
+        mp3buf = encoder.encodeBuffer(lChunk, rChunk);
+      } else {
+        mp3buf = encoder.encodeBuffer(lChunk);
+      }
+      if(mp3buf.length>0) mp3Data.push(mp3buf);
+    }
+    const end = encoder.flush();
+    if(end.length>0) mp3Data.push(end);
+    return new Blob(mp3Data, {type:'audio/mp3'});
+  }
+
+  function triggerDownload(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }
+
+  exportWavBtn.onclick = async ()=>{
+    if(!originalBuffer) return;
+    exportWavBtn.disabled = true; exportMp3Btn.disabled = true;
+    exportAudioStatus.textContent = T('renderingAudio');
+    try{
+      const mixed = await renderMixedAudioBuffer();
+      const blob = audioBufferToWavBlob(mixed);
+      triggerDownload(blob, (sourceFileMeta.name.replace(/\.[^.]+$/,'')||'dubbed_mix')+'.wav');
+      exportAudioStatus.textContent = '';
+    } finally {
+      exportWavBtn.disabled = false; exportMp3Btn.disabled = false;
+    }
+  };
+
+  exportMp3Btn.onclick = async ()=>{
+    if(!originalBuffer) return;
+    if(typeof lamejs === 'undefined'){ alert(T('lameLoadFail')); return; }
+    exportWavBtn.disabled = true; exportMp3Btn.disabled = true;
+    exportAudioStatus.textContent = T('renderingAudio');
+    try{
+      const mixed = await renderMixedAudioBuffer();
+      exportAudioStatus.textContent = T('encodingMp3');
+      // MP3 encoding is synchronous and can be heavy — yield a frame first so the status text actually paints
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      const blob = audioBufferToMp3Blob(mixed);
+      triggerDownload(blob, (sourceFileMeta.name.replace(/\.[^.]+$/,'')||'dubbed_mix')+'.mp3');
+      exportAudioStatus.textContent = '';
+    } finally {
+      exportWavBtn.disabled = false; exportMp3Btn.disabled = false;
+    }
+  };
+
+  langBtn.onclick = ()=>{
+    lang = (lang === 'tr') ? 'en' : 'tr';
+    try{ localStorage.setItem('dubtool_lang', lang); }catch(e){}
+    applyLang();
+  };
+  applyLang();
+
+})();
+</script>
+</body>
+</html>
